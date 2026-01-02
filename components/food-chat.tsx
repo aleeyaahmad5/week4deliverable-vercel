@@ -2,12 +2,13 @@
 
 import type React from "react"
 
-import { useState, useRef, useEffect } from "react"
+import { useState, useRef, useEffect, useCallback } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card } from "@/components/ui/card"
-import { SendHorizontal, Loader2, Sparkles, User, Apple, Flame, Salad, ChefHat, TrendingUp, MapPin, BookOpen, Trash2, Plus, Clock } from "lucide-react"
-import { ragQuery } from "@/app/actions"
+import { SendHorizontal, Loader2, Sparkles, User, Apple, Flame, Salad, ChefHat, TrendingUp, MapPin, BookOpen, Trash2, Plus, Clock, Zap, Database, Brain, Timer, Radio } from "lucide-react"
+import { ragQuery, type PerformanceMetrics } from "@/app/actions"
+import { useChat } from "ai/react"
 
 interface SearchResult {
   id: string
@@ -22,6 +23,7 @@ interface SearchResult {
 interface RAGResponse {
   sources: SearchResult[]
   answer: string
+  metrics: PerformanceMetrics
 }
 
 interface Message {
@@ -29,7 +31,9 @@ interface Message {
   question: string
   answer: string
   sources: SearchResult[]
+  metrics?: PerformanceMetrics
   isLoading?: boolean
+  isStreaming?: boolean
   error?: string
   timestamp?: Date
 }
@@ -61,6 +65,9 @@ export function FoodChat({ onMessageCountChange, showHistory = false, onHistoryC
   const [loading, setLoading] = useState(false)
   const [conversations, setConversations] = useState<Conversation[]>([])
   const [currentConversationId, setCurrentConversationId] = useState<string>("")
+  const [useStreaming, setUseStreaming] = useState(true)
+  const [streamingSources, setStreamingSources] = useState<SearchResult[]>([])
+  const [streamingMetrics, setStreamingMetrics] = useState<PerformanceMetrics | null>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
   const isFirstLoadRef = useRef(true)
@@ -182,6 +189,7 @@ export function FoodChat({ onMessageCountChange, showHistory = false, onHistoryC
           answer: "",
           sources: [],
           isLoading: true,
+          isStreaming: useStreaming,
           timestamp: new Date(),
         },
       ]
@@ -208,30 +216,103 @@ export function FoodChat({ onMessageCountChange, showHistory = false, onHistoryC
     })
 
     try {
-      const result = await ragQuery(currentQuestion)
-      
-      setMessages((prev) => {
-        const updatedMessages = prev.map((msg) =>
-          msg.id === loadingMessageId
-            ? {
-                ...msg,
-                answer: result.answer,
-                sources: result.sources,
-                isLoading: false,
-              }
-            : msg
-        )
-        
-        setConversations((conversations) =>
-          conversations.map((conv) =>
-            conv.id === currentConversationId
-              ? { ...conv, messages: updatedMessages, updatedAt: new Date() }
-              : conv
+      if (useStreaming) {
+        // Streaming mode using fetch
+        const startTime = performance.now()
+        const response = await fetch("/api/chat", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ question: currentQuestion }),
+        })
+
+        if (!response.ok) {
+          throw new Error("Failed to get response")
+        }
+
+        // Get sources from headers
+        const sourcesHeader = response.headers.get("X-Sources")
+        const vectorSearchTime = response.headers.get("X-Vector-Search-Time")
+        const sources: SearchResult[] = sourcesHeader 
+          ? JSON.parse(decodeURIComponent(sourcesHeader)) 
+          : []
+
+        // Read the stream (text stream format - plain text chunks)
+        const reader = response.body?.getReader()
+        const decoder = new TextDecoder()
+        let fullText = ""
+
+        if (reader) {
+          while (true) {
+            const { done, value } = await reader.read()
+            if (done) break
+            
+            const chunk = decoder.decode(value, { stream: true })
+            fullText += chunk
+            
+            // Update the message with partial content
+            setMessages((prev) =>
+              prev.map((msg) =>
+                msg.id === loadingMessageId
+                  ? { ...msg, answer: fullText, sources, isLoading: false, isStreaming: true }
+                  : msg
+              )
+            )
+          }
+        }
+
+        const totalTime = performance.now() - startTime
+        const metrics: PerformanceMetrics = {
+          vectorSearchTime: parseInt(vectorSearchTime || "0"),
+          llmProcessingTime: Math.round(totalTime - parseInt(vectorSearchTime || "0")),
+          totalResponseTime: Math.round(totalTime),
+        }
+
+        // Final update with complete message
+        setMessages((prev) => {
+          const updatedMessages = prev.map((msg) =>
+            msg.id === loadingMessageId
+              ? { ...msg, answer: fullText, sources, metrics, isLoading: false, isStreaming: false }
+              : msg
           )
-        )
+          
+          setConversations((conversations) =>
+            conversations.map((conv) =>
+              conv.id === currentConversationId
+                ? { ...conv, messages: updatedMessages, updatedAt: new Date() }
+                : conv
+            )
+          )
+          
+          return updatedMessages
+        })
+      } else {
+        // Non-streaming mode using server action
+        const result = await ragQuery(currentQuestion)
         
-        return updatedMessages
-      })
+        setMessages((prev) => {
+          const updatedMessages = prev.map((msg) =>
+            msg.id === loadingMessageId
+              ? {
+                  ...msg,
+                  answer: result.answer,
+                  sources: result.sources,
+                  metrics: result.metrics,
+                  isLoading: false,
+                }
+              : msg
+          )
+          
+          setConversations((conversations) =>
+            conversations.map((conv) =>
+              conv.id === currentConversationId
+                ? { ...conv, messages: updatedMessages, updatedAt: new Date() }
+                : conv
+            )
+          )
+          
+          return updatedMessages
+        })
+      }
     } catch (err) {
       setMessages((prev) => {
         const updatedMessages = prev.map((msg) =>
@@ -464,22 +545,31 @@ export function FoodChat({ onMessageCountChange, showHistory = false, onHistoryC
                   </div>
                 )}
 
-                {message.answer && !message.isLoading && (
+                {message.answer && (
                   <div className="space-y-4">
                     <div className="flex items-start gap-3">
-                      <div className="p-2 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-full flex-shrink-0 mt-1 shadow-lg shadow-blue-200 dark:shadow-blue-900/30">
+                      <div className={`p-2 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-full flex-shrink-0 mt-1 shadow-lg shadow-blue-200 dark:shadow-blue-900/30 ${message.isStreaming ? "animate-pulse" : ""}`}>
                         <Sparkles className="w-4 h-4 text-white" />
                       </div>
                       <div className="flex-1 space-y-2 min-w-0">
                         <Card className="bg-white/80 dark:bg-slate-800/80 backdrop-blur-sm border-slate-200/50 dark:border-slate-700/50 p-4 rounded-2xl rounded-tl-sm shadow-md">
                           <p className="text-slate-900 dark:text-slate-100 text-sm leading-relaxed whitespace-pre-wrap break-words">
                             {message.answer}
+                            {message.isStreaming && (
+                              <span className="inline-block w-2 h-4 ml-1 bg-blue-500 animate-pulse rounded-sm" />
+                            )}
                           </p>
+                          {message.isStreaming && (
+                            <div className="flex items-center gap-2 mt-2 text-xs text-blue-600 dark:text-blue-400">
+                              <Radio className="w-3 h-3 animate-pulse" />
+                              <span>Streaming response...</span>
+                            </div>
+                          )}
                         </Card>
                       </div>
                     </div>
 
-                    {message.sources.length > 0 && (
+                    {message.sources.length > 0 && !message.isStreaming && (
                       <div className="ml-11 space-y-3">
                         <p className="text-xs font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wide flex items-center gap-2">
                           <BookOpen className="w-4 h-4" />
@@ -519,6 +609,58 @@ export function FoodChat({ onMessageCountChange, showHistory = false, onHistoryC
                         </div>
                       </div>
                     )}
+
+                    {/* Performance Metrics Display */}
+                    {message.metrics && !message.isStreaming && (
+                      <div className="ml-11 mt-3">
+                        <p className="text-xs font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wide flex items-center gap-2 mb-2">
+                          <Zap className="w-4 h-4" />
+                          Performance Metrics
+                        </p>
+                        <Card className="bg-gradient-to-br from-emerald-50 to-teal-50 dark:from-emerald-900/20 dark:to-teal-900/20 border-emerald-200/50 dark:border-emerald-700/50 p-3 rounded-xl">
+                          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                            <div className="flex items-center gap-2">
+                              <div className="p-1.5 bg-gradient-to-br from-blue-400 to-blue-500 rounded-lg shadow-sm">
+                                <Database className="w-3 h-3 text-white" />
+                              </div>
+                              <div>
+                                <p className="text-[10px] text-slate-500 dark:text-slate-400 uppercase tracking-wide">Vector Search</p>
+                                <p className="text-sm font-bold text-slate-900 dark:text-slate-100">{message.metrics.vectorSearchTime}ms</p>
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <div className="p-1.5 bg-gradient-to-br from-purple-400 to-purple-500 rounded-lg shadow-sm">
+                                <Brain className="w-3 h-3 text-white" />
+                              </div>
+                              <div>
+                                <p className="text-[10px] text-slate-500 dark:text-slate-400 uppercase tracking-wide">LLM Processing</p>
+                                <p className="text-sm font-bold text-slate-900 dark:text-slate-100">{message.metrics.llmProcessingTime}ms</p>
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <div className="p-1.5 bg-gradient-to-br from-emerald-400 to-emerald-500 rounded-lg shadow-sm">
+                                <Timer className="w-3 h-3 text-white" />
+                              </div>
+                              <div>
+                                <p className="text-[10px] text-slate-500 dark:text-slate-400 uppercase tracking-wide">Total Time</p>
+                                <p className="text-sm font-bold text-slate-900 dark:text-slate-100">{message.metrics.totalResponseTime}ms</p>
+                              </div>
+                            </div>
+                            {message.metrics.tokensUsed && (
+                              <div className="flex items-center gap-2">
+                                <div className="p-1.5 bg-gradient-to-br from-orange-400 to-orange-500 rounded-lg shadow-sm">
+                                  <Sparkles className="w-3 h-3 text-white" />
+                                </div>
+                                <div>
+                                  <p className="text-[10px] text-slate-500 dark:text-slate-400 uppercase tracking-wide">Tokens Used</p>
+                                  <p className="text-sm font-bold text-slate-900 dark:text-slate-100">{message.metrics.tokensUsed}</p>
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        </Card>
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
@@ -530,7 +672,23 @@ export function FoodChat({ onMessageCountChange, showHistory = false, onHistoryC
 
         {/* Input Form */}
         <div className="border-t border-slate-200 dark:border-slate-700 p-4 lg:p-6 bg-gradient-to-b from-transparent to-white dark:to-slate-800">
-          <div className="max-w-3xl mx-auto">
+          <div className="max-w-3xl mx-auto space-y-2">
+            {/* Streaming Toggle */}
+            <div className="flex items-center justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setUseStreaming(!useStreaming)}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
+                  useStreaming
+                    ? "bg-gradient-to-r from-emerald-500 to-teal-500 text-white shadow-md"
+                    : "bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-400"
+                }`}
+              >
+                <Radio className={`w-3 h-3 ${useStreaming ? "animate-pulse" : ""}`} />
+                {useStreaming ? "Streaming On" : "Streaming Off"}
+              </button>
+            </div>
+            
             <Card className="p-3 lg:p-4 bg-white/95 dark:bg-slate-800/95 backdrop-blur-md shadow-xl border-slate-200/50 dark:border-slate-700/50 rounded-2xl">
               <form onSubmit={handleSubmit} className="flex gap-2 lg:gap-3">
                 <Input

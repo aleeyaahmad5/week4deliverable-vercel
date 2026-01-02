@@ -22,19 +22,31 @@ interface SearchResult {
   }
 }
 
+export interface PerformanceMetrics {
+  vectorSearchTime: number
+  llmProcessingTime: number
+  totalResponseTime: number
+  tokensUsed?: number
+}
+
 interface RAGResponse {
   sources: SearchResult[]
   answer: string
+  metrics: PerformanceMetrics
 }
 
 export async function ragQuery(question: string): Promise<RAGResponse> {
+  const startTime = performance.now()
+  
   try {
     // Vector search using Upstash
+    const vectorSearchStart = performance.now()
     const results = await upstashIndex.query({
       data: question,
       topK: 3,
       includeMetadata: true,
     })
+    const vectorSearchTime = performance.now() - vectorSearchStart
 
     // Format sources
     const sources: SearchResult[] = results.map((result) => ({
@@ -47,6 +59,7 @@ export async function ragQuery(question: string): Promise<RAGResponse> {
     const context = sources.map((source, index) => `[${index + 1}] ${source.metadata.text}`).join("\n\n")
 
     // Generate AI response using Groq
+    const llmStart = performance.now()
     const completion = await groq.chat.completions.create({
       model: "llama-3.1-8b-instant",
       messages: [
@@ -63,12 +76,25 @@ export async function ragQuery(question: string): Promise<RAGResponse> {
       temperature: 0.7,
       max_tokens: 500,
     })
+    const llmProcessingTime = performance.now() - llmStart
 
     const answer = completion.choices[0]?.message?.content?.trim() || "No answer generated"
+    const totalResponseTime = performance.now() - startTime
+    
+    // Extract token usage if available
+    const tokensUsed = completion.usage?.total_tokens
+
+    const metrics: PerformanceMetrics = {
+      vectorSearchTime: Math.round(vectorSearchTime),
+      llmProcessingTime: Math.round(llmProcessingTime),
+      totalResponseTime: Math.round(totalResponseTime),
+      tokensUsed,
+    }
 
     return {
       sources,
       answer,
+      metrics,
     }
   } catch (error) {
     console.error("[v0] RAG Query Error:", error)

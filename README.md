@@ -20,7 +20,8 @@ The application leverages **AI-assisted development** using v0.dev to build a so
 - 📊 **Source Attribution** - See relevant sources with relevance scores
 - 💾 **Conversation History** - Persistent chat memory with localStorage auto-save
 - 🎨 **Professional UI/UX** - Modern, responsive design with dark mode support
-- ⚡ **Real-time Responses** - Fast, optimized performance
+- ⚡ **Real-time Streaming** - Stream AI responses in real-time with toggle option
+- 📈 **Performance Metrics** - Track vector search time, LLM processing time, and token usage
 - 📱 **Mobile-Optimized** - Fully responsive design for all devices
 
 ## 🚀 Live Demo
@@ -46,7 +47,9 @@ Try asking questions like:
 ### Backend & AI
 - **Upstash Vector** - Serverless vector database for semantic search
 - **Groq API** - Fast LLM inference (llama-3.1-8b-instant)
+- **Vercel AI SDK** - Streaming response support with @ai-sdk/groq
 - **Next.js Server Actions** - Backend logic without REST API
+- **Next.js API Routes** - Streaming API endpoint for real-time responses
 
 ### Deployment
 - **Vercel** - Edge-optimized deployment and hosting
@@ -87,6 +90,9 @@ Vector Semantic Search (Upstash Vector)
 food-rag-web-app/
 ├── app/
 │   ├── actions.ts          # Server actions for RAG queries
+│   ├── api/
+│   │   └── chat/
+│   │       └── route.ts    # Streaming API endpoint
 │   ├── layout.tsx          # Root layout with theme setup
 │   ├── page.tsx            # Home page component
 │   └── globals.css         # Global styles
@@ -178,7 +184,13 @@ This project is configured for automatic deployment via Vercel:
       origin: string
     }
   }>,
-  answer: string
+  answer: string,
+  metrics: {
+    vectorSearchTime: number  // milliseconds
+    llmProcessingTime: number // milliseconds
+    totalResponseTime: number // milliseconds
+    tokensUsed?: number       // total tokens used
+  }
 }
 ```
 
@@ -187,7 +199,16 @@ This project is configured for automatic deployment via Vercel:
 2. Searches Upstash Vector DB with `topK: 3`
 3. Formats retrieved context
 4. Sends to Groq API with system prompt
-5. Returns formatted response
+5. Returns formatted response with performance metrics
+
+### Streaming API: `POST /api/chat`
+
+**Location**: [app/api/chat/route.ts](app/api/chat/route.ts)
+
+**Features**:
+- Real-time text streaming using Vercel AI SDK
+- Sources returned via response headers
+- Performance metrics tracking
 
 ### Upstash Vector Integration
 
@@ -202,6 +223,7 @@ This project is configured for automatic deployment via Vercel:
 - **Temperature**: 0.7 (balanced creativity and accuracy)
 - **Max Tokens**: 500
 - **System Prompt**: Food knowledge assistant context
+- **Streaming**: Optional real-time text streaming
 
 ## 🎨 UI Features
 
@@ -211,6 +233,11 @@ This project is configured for automatic deployment via Vercel:
 - Icon with sparkle animation
 - Example questions for quick start
 - Four categorized question templates
+
+**Streaming Toggle**
+- Toggle button to enable/disable streaming responses
+- Visual indicator when streaming is active
+- Animated cursor during active streaming
 
 **Conversation History**
 - Persistent localStorage-based chat memory
@@ -244,17 +271,25 @@ This project is configured for automatic deployment via Vercel:
 
 ## 📊 Performance Metrics
 
+### Real-Time Metrics Display
+Each response now includes detailed performance metrics:
+- **Vector Search Time** - Time to search Upstash Vector DB
+- **LLM Processing Time** - Time for Groq API to generate response
+- **Total Response Time** - End-to-end latency
+- **Tokens Used** - Total tokens consumed (when available)
+
 ### Response Times (Approximate)
 - **Vector Search**: 100-200ms
-- **LLM Processing**: 500-1500ms
+- **LLM Processing**: 500-1500ms (non-streaming) / Real-time (streaming)
 - **Total Response**: 600-1700ms
 - **First Contentful Paint**: <1.5s
 
 ### Optimization Techniques
-- Server-side rendering for performance
-- Efficient vector search (top K)
+- Server-side rendering for initial page load
+- Efficient vector search with top K filtering
 - Context-aware prompt engineering
-- Stream-optimized component updates
+- **Real-time Streaming** - Optional streaming responses for faster perceived performance
+- Stream-optimized component updates with live cursor
 
 ## 🔄 Development Journey
 
@@ -273,6 +308,12 @@ This project is configured for automatic deployment via Vercel:
 - AI-assisted development with v0.dev
 - Professional deployment on Vercel
 - Full-stack optimization
+
+### Week 5: Advanced Features
+- Added real-time performance metrics tracking
+- Implemented streaming responses with Vercel AI SDK
+- Toggle between streaming and non-streaming modes
+- Enhanced UI with live metrics display
 
 ## 📝 Usage Examples
 
@@ -301,6 +342,8 @@ Sources:
 ## 🎯 Key Achievements
 
 ✅ **Fully Functional RAG System** - Vector search + LLM generation working seamlessly  
+✅ **Real-Time Streaming** - Optional streaming responses with live text updates  
+✅ **Performance Metrics** - Track vector search, LLM processing, and total response times  
 ✅ **Persistent Chat Memory** - Conversations auto-saved with localStorage  
 ✅ **Multi-Conversation Support** - Manage multiple independent chat threads  
 ✅ **Professional Web Interface** - Modern, responsive design with smooth interactions  
