@@ -195,20 +195,20 @@
 }
 
 ::-webkit-scrollbar-thumb {
-  background: oklch(0.7 0.1 45);
+  background: oklch(0.7 0.02 60);
   border-radius: 4px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: oklch(0.6 0.15 45);
+  background: oklch(0.6 0.03 60);
 }
 
 .dark ::-webkit-scrollbar-thumb {
-  background: oklch(0.4 0.05 45);
+  background: oklch(0.35 0.02 60);
 }
 
 .dark ::-webkit-scrollbar-thumb:hover {
-  background: oklch(0.5 0.08 45);
+  background: oklch(0.45 0.02 60);
 }
 
 /* Line clamp utility */
