@@ -42,6 +42,8 @@ interface FoodChatProps {
   onMessageCountChange?: (count: number) => void
   showHistory?: boolean
   onHistoryChange?: (show: boolean) => void
+  onNewChat?: () => void
+  triggerNewChat?: boolean
 }
 
 interface Conversation {
@@ -59,7 +61,7 @@ const exampleQuestions = [
   { icon: ChefHat, text: "What makes different cuisines unique?", color: "text-purple-500" },
 ]
 
-export function FoodChat({ onMessageCountChange, showHistory = false, onHistoryChange }: FoodChatProps) {
+export function FoodChat({ onMessageCountChange, showHistory = false, onHistoryChange, triggerNewChat }: FoodChatProps) {
   const [messages, setMessages] = useState<Message[]>([])
   const [question, setQuestion] = useState("")
   const [loading, setLoading] = useState(false)
@@ -71,6 +73,7 @@ export function FoodChat({ onMessageCountChange, showHistory = false, onHistoryC
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
   const isFirstLoadRef = useRef(true)
+  const prevTriggerNewChatRef = useRef(triggerNewChat)
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" })
@@ -124,6 +127,14 @@ export function FoodChat({ onMessageCountChange, showHistory = false, onHistoryC
   useEffect(() => {
     onMessageCountChange?.(messages.length)
   }, [messages.length, onMessageCountChange])
+
+  // Handle trigger for new chat from parent (Home button)
+  useEffect(() => {
+    if (triggerNewChat && triggerNewChat !== prevTriggerNewChatRef.current) {
+      createNewConversation()
+    }
+    prevTriggerNewChatRef.current = triggerNewChat
+  }, [triggerNewChat])
 
   const createNewConversation = () => {
     const newConversationId = Date.now().toString()

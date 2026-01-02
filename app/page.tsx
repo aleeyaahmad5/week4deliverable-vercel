@@ -9,10 +9,11 @@ import { FoodChat } from "@/components/food-chat"
 export default function Home() {
   const [messageCount, setMessageCount] = useState(0)
   const [showHistory, setShowHistory] = useState(false)
+  const [triggerNewChat, setTriggerNewChat] = useState(false)
 
   const handleClearChat = () => {
-    // This will be handled by FoodChat component
-    window.location.reload()
+    // Toggle to trigger new chat in FoodChat component
+    setTriggerNewChat(prev => !prev)
   }
 
   return (
@@ -22,7 +23,12 @@ export default function Home() {
       <Header onClearChat={handleClearChat} messageCount={messageCount} showHistory={showHistory} onHistoryToggle={setShowHistory} />
 
       <main className="flex-1 relative z-10">
-        <FoodChat onMessageCountChange={setMessageCount} showHistory={showHistory} onHistoryChange={setShowHistory} />
+        <FoodChat 
+          onMessageCountChange={setMessageCount} 
+          showHistory={showHistory} 
+          onHistoryChange={setShowHistory}
+          triggerNewChat={triggerNewChat}
+        />
       </main>
 
       <Footer />
