@@ -6,7 +6,7 @@ import { useState, useRef, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card } from "@/components/ui/card"
-import { SendHorizontal, Loader2, Sparkles, User, Apple, Flame, Salad, ChefHat, TrendingUp, MapPin, BookOpen } from "lucide-react"
+import { SendHorizontal, Loader2, Sparkles, User, Apple, Flame, Salad, ChefHat, TrendingUp, MapPin, BookOpen, Trash2, Plus, Clock, ChevronDown } from "lucide-react"
 import { ragQuery } from "@/app/actions"
 
 interface SearchResult {
@@ -38,6 +38,14 @@ interface FoodChatProps {
   onMessageCountChange?: (count: number) => void
 }
 
+interface Conversation {
+  id: string
+  title: string
+  messages: Message[]
+  createdAt: Date
+  updatedAt: Date
+}
+
 const exampleQuestions = [
   { icon: Apple, text: "What fruits are popular in tropical regions?", color: "text-red-500" },
   { icon: Flame, text: "Tell me about spicy foods and their origins", color: "text-orange-500" },
@@ -49,8 +57,12 @@ export function FoodChat({ onMessageCountChange }: FoodChatProps) {
   const [messages, setMessages] = useState<Message[]>([])
   const [question, setQuestion] = useState("")
   const [loading, setLoading] = useState(false)
+  const [conversations, setConversations] = useState<Conversation[]>([])
+  const [currentConversationId, setCurrentConversationId] = useState<string>("")
+  const [showHistory, setShowHistory] = useState(false)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
+  const isFirstLoadRef = useRef(true)
 
   // Auto-scroll to bottom when new messages arrive
   useEffect(() => {
@@ -62,10 +74,109 @@ export function FoodChat({ onMessageCountChange }: FoodChatProps) {
     inputRef.current?.focus()
   }, [])
 
+  // Load conversations from localStorage on mount
+  useEffect(() => {
+    if (!isFirstLoadRef.current) return
+    isFirstLoadRef.current = false
+
+    try {
+      const savedConversations = localStorage.getItem("foodChatConversations")
+      if (savedConversations) {
+        const parsed = JSON.parse(savedConversations)
+        const hydrated = parsed.map((conv: any) => ({
+          ...conv,
+          createdAt: new Date(conv.createdAt),
+          updatedAt: new Date(conv.updatedAt),
+          messages: conv.messages.map((msg: any) => ({
+            ...msg,
+            timestamp: msg.timestamp ? new Date(msg.timestamp) : new Date(),
+          })),
+        }))
+        setConversations(hydrated)
+        
+        // Load the most recent conversation
+        if (hydrated.length > 0) {
+          const mostRecent = hydrated[0]
+          setCurrentConversationId(mostRecent.id)
+          setMessages(mostRecent.messages)
+        } else {
+          createNewConversation()
+        }
+      } else {
+        createNewConversation()
+      }
+    } catch (error) {
+      console.error("Failed to load conversations:", error)
+      createNewConversation()
+    }
+  }, [])
+
+  // Save conversations to localStorage whenever they change
+  useEffect(() => {
+    if (conversations.length > 0) {
+      localStorage.setItem("foodChatConversations", JSON.stringify(conversations))
+    }
+  }, [conversations])
+
   // Update message count
   useEffect(() => {
     onMessageCountChange?.(messages.length)
   }, [messages.length, onMessageCountChange])
+
+  const createNewConversation = () => {
+    const newConversationId = Date.now().toString()
+    setCurrentConversationId(newConversationId)
+    setMessages([])
+    setConversations((prev) => [
+      {
+        id: newConversationId,
+        title: "New Chat",
+        messages: [],
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      },
+      ...prev,
+    ])
+  }
+
+  const loadConversation = (conversationId: string) => {
+    const conversation = conversations.find((c) => c.id === conversationId)
+    if (conversation) {
+      setCurrentConversationId(conversationId)
+      setMessages(conversation.messages)
+      setShowHistory(false)
+    }
+  }
+
+  const deleteConversation = (conversationId: string) => {
+    const newConversations = conversations.filter((c) => c.id !== conversationId)
+    setConversations(newConversations)
+    
+    if (currentConversationId === conversationId) {
+      if (newConversations.length > 0) {
+        loadConversation(newConversations[0].id)
+      } else {
+        createNewConversation()
+      }
+    }
+  }
+
+  const updateCurrentConversationTitle = (newTitle: string) => {
+    setConversations((prev) =>
+      prev.map((conv) =>
+        conv.id === currentConversationId
+          ? { ...conv, title: newTitle, updatedAt: new Date() }
+          : conv
+      )
+    )
+  }
+
+  const generateConversationTitle = (firstQuestion: string) => {
+    const maxLength = 50
+    return firstQuestion.length > maxLength
+      ? firstQuestion.substring(0, maxLength) + "..."
+      : firstQuestion
+  }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -78,24 +189,48 @@ export function FoodChat({ onMessageCountChange }: FoodChatProps) {
     const loadingMessageId = Date.now().toString()
     
     // Add loading message
-    setMessages((prev) => [
-      ...prev,
-      {
-        id: loadingMessageId,
-        question: currentQuestion,
-        answer: "",
-        sources: [],
-        isLoading: true,
-        timestamp: new Date(),
-      },
-    ])
+    setMessages((prev) => {
+      const updatedMessages = [
+        ...prev,
+        {
+          id: loadingMessageId,
+          question: currentQuestion,
+          answer: "",
+          sources: [],
+          isLoading: true,
+          timestamp: new Date(),
+        },
+      ]
+      
+      // Update conversation with new messages
+      setConversations((conversations) =>
+        conversations.map((conv) => {
+          if (conv.id === currentConversationId) {
+            // Update title if it's still "New Chat"
+            const newTitle =
+              conv.title === "New Chat"
+                ? generateConversationTitle(currentQuestion)
+                : conv.title
+            return {
+              ...conv,
+              messages: updatedMessages,
+              title: newTitle,
+              updatedAt: new Date(),
+            }
+          }
+          return conv
+        })
+      )
+      
+      return updatedMessages
+    })
 
     try {
       const result = await ragQuery(currentQuestion)
       
       // Replace loading message with actual response
-      setMessages((prev) =>
-        prev.map((msg) =>
+      setMessages((prev) => {
+        const updatedMessages = prev.map((msg) =>
           msg.id === loadingMessageId
             ? {
                 ...msg,
@@ -105,10 +240,21 @@ export function FoodChat({ onMessageCountChange }: FoodChatProps) {
               }
             : msg
         )
-      )
+        
+        // Update conversation with response
+        setConversations((conversations) =>
+          conversations.map((conv) =>
+            conv.id === currentConversationId
+              ? { ...conv, messages: updatedMessages, updatedAt: new Date() }
+              : conv
+          )
+        )
+        
+        return updatedMessages
+      })
     } catch (err) {
-      setMessages((prev) =>
-        prev.map((msg) =>
+      setMessages((prev) => {
+        const updatedMessages = prev.map((msg) =>
           msg.id === loadingMessageId
             ? {
                 ...msg,
@@ -117,7 +263,18 @@ export function FoodChat({ onMessageCountChange }: FoodChatProps) {
               }
             : msg
         )
-      )
+        
+        // Update conversation with error
+        setConversations((conversations) =>
+          conversations.map((conv) =>
+            conv.id === currentConversationId
+              ? { ...conv, messages: updatedMessages, updatedAt: new Date() }
+              : conv
+          )
+        )
+        
+        return updatedMessages
+      })
     } finally {
       setLoading(false)
       inputRef.current?.focus()
@@ -136,40 +293,42 @@ export function FoodChat({ onMessageCountChange }: FoodChatProps) {
   }
 
   return (
-    <div className="w-full max-w-3xl mx-auto px-4 py-8">
-      <div className="space-y-6">
-        {/* Welcome State */}
-        {messages.length === 0 && !loading && (
-          <div className="text-center py-12 animate-fade-in">
-            <div className="mb-6">
-              <div className="inline-flex p-4 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-2xl shadow-xl shadow-blue-200 dark:shadow-blue-900/30 mb-4 animate-bounce-slow">
-                <Sparkles className="w-10 h-10 text-white" />
+    <div className="w-full max-w-4xl mx-auto px-4 py-8">
+      <div className="flex gap-4">
+        {/* Main Chat Area */}
+        <div className="flex-1 space-y-6">
+          {/* Welcome State */}
+          {messages.length === 0 && !loading && (
+            <div className="text-center py-12 animate-fade-in">
+              <div className="mb-6">
+                <div className="inline-flex p-4 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-2xl shadow-xl shadow-blue-200 dark:shadow-blue-900/30 mb-4 animate-bounce-slow">
+                  <Sparkles className="w-10 h-10 text-white" />
+                </div>
+                <h2 className="text-2xl font-bold text-slate-900 dark:text-white mb-2">
+                  Ask anything about food
+                </h2>
+                <p className="text-slate-600 dark:text-slate-400 max-w-md mx-auto">
+                  Get AI-powered answers with relevant sources from our food knowledge base
+                </p>
               </div>
-              <h2 className="text-2xl font-bold text-slate-900 dark:text-white mb-2">
-                Ask anything about food
-              </h2>
-              <p className="text-slate-600 dark:text-slate-400 max-w-md mx-auto">
-                Get AI-powered answers with relevant sources from our food knowledge base
-              </p>
-            </div>
 
-            {/* Example Questions */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-w-xl mx-auto">
-              {exampleQuestions.map((example, index) => (
-                <button
-                  key={index}
-                  onClick={() => handleExampleClick(example.text)}
-                  className="flex items-center gap-3 p-3 bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 hover:border-blue-300 dark:hover:border-blue-600 hover:shadow-md transition-all text-left group"
-                >
-                  <div className={`p-2 rounded-lg bg-slate-100 dark:bg-slate-700 group-hover:bg-blue-100 dark:group-hover:bg-blue-900/50 transition-colors`}>
-                    <example.icon className={`w-4 h-4 ${example.color}`} />
-                  </div>
-                  <span className="text-sm text-slate-700 dark:text-slate-300">{example.text}</span>
-                </button>
-              ))}
+              {/* Example Questions */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-w-xl mx-auto">
+                {exampleQuestions.map((example, index) => (
+                  <button
+                    key={index}
+                    onClick={() => handleExampleClick(example.text)}
+                    className="flex items-center gap-3 p-3 bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 hover:border-blue-300 dark:hover:border-blue-600 hover:shadow-md transition-all text-left group"
+                  >
+                    <div className={`p-2 rounded-lg bg-slate-100 dark:bg-slate-700 group-hover:bg-blue-100 dark:group-hover:bg-blue-900/50 transition-colors`}>
+                      <example.icon className={`w-4 h-4 ${example.color}`} />
+                    </div>
+                    <span className="text-sm text-slate-700 dark:text-slate-300">{example.text}</span>
+                  </button>
+                ))}
+              </div>
             </div>
-          </div>
-        )}
+          )}
 
         {/* Messages */}
         {messages.map((message) => (
@@ -308,6 +467,74 @@ export function FoodChat({ onMessageCountChange }: FoodChatProps) {
               </Button>
             </form>
           </Card>
+        </div>
+        </div>
+
+        {/* Conversation History Sidebar */}
+        <div className="hidden md:flex flex-col w-64 gap-2">
+          {/* Toggle Button */}
+          <Button
+            onClick={() => setShowHistory(!showHistory)}
+            variant="outline"
+            className="w-full justify-between"
+          >
+            <span className="flex items-center gap-2">
+              <Clock className="w-4 h-4" />
+              History
+            </span>
+            <ChevronDown className={`w-4 h-4 transition-transform ${showHistory ? "rotate-180" : ""}`} />
+          </Button>
+
+          {/* New Chat Button */}
+          <Button
+            onClick={createNewConversation}
+            className="w-full bg-blue-500 hover:bg-blue-600 text-white flex items-center gap-2"
+          >
+            <Plus className="w-4 h-4" />
+            New Chat
+          </Button>
+
+          {/* Conversations List */}
+          {showHistory && (
+            <div className="flex-1 overflow-y-auto space-y-2 bg-slate-50 dark:bg-slate-800/50 rounded-lg p-3 border border-slate-200 dark:border-slate-700">
+              {conversations.length === 0 ? (
+                <p className="text-xs text-slate-500 text-center py-4">No conversations yet</p>
+              ) : (
+                conversations.map((conv) => (
+                  <div
+                    key={conv.id}
+                    className={`group flex items-start gap-2 p-2 rounded-lg cursor-pointer transition-colors ${
+                      currentConversationId === conv.id
+                        ? "bg-blue-100 dark:bg-blue-900/50"
+                        : "hover:bg-slate-200 dark:hover:bg-slate-700"
+                    }`}
+                  >
+                    <button
+                      onClick={() => loadConversation(conv.id)}
+                      className="flex-1 text-left min-w-0"
+                    >
+                      <p className="text-xs font-medium text-slate-900 dark:text-slate-100 truncate">
+                        {conv.title}
+                      </p>
+                      <p className="text-xs text-slate-500 dark:text-slate-400">
+                        {new Date(conv.updatedAt).toLocaleDateString()}
+                      </p>
+                    </button>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        deleteConversation(conv.id)
+                      }}
+                      className="p-1 rounded hover:bg-red-100 dark:hover:bg-red-900/50 opacity-0 group-hover:opacity-100 transition-opacity"
+                      title="Delete conversation"
+                    >
+                      <Trash2 className="w-3 h-3 text-red-500" />
+                    </button>
+                  </div>
+                ))
+              )}
+            </div>
+          )}
         </div>
       </div>
     </div>

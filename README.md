@@ -18,6 +18,7 @@ The application leverages **AI-assisted development** using v0.dev to build a so
 - 🔍 **Semantic Search** - Vector-based similarity search using Upstash Vector Database
 - 🧠 **LLM Integration** - Groq API for intelligent response generation  
 - 📊 **Source Attribution** - See relevant sources with relevance scores
+- 💾 **Conversation History** - Persistent chat memory with localStorage auto-save
 - 🎨 **Professional UI/UX** - Modern, responsive design with dark mode support
 - ⚡ **Real-time Responses** - Fast, optimized performance
 - 📱 **Mobile-Optimized** - Fully responsive design for all devices
@@ -211,11 +212,23 @@ This project is configured for automatic deployment via Vercel:
 - Example questions for quick start
 - Four categorized question templates
 
+**Conversation History**
+- Persistent localStorage-based chat memory
+- Multiple concurrent conversations
+- Auto-generated titles from first question
+- Quick navigation between conversations
+- One-click conversation deletion
+- Shows last updated date for each conversation
+- Toggle-able history sidebar (hidden on mobile for space)
+- "New Chat" button for starting fresh conversations
+
 **Message Display**
 - User messages (right-aligned, blue gradient)
 - AI responses (left-aligned with icon)
 - Loading animation with dots
 - Error handling with recovery guidance
+- Auto-scrolling to latest messages
+- Timestamps on each message
 
 **Source Attribution**
 - Ranked source cards with metadata
@@ -288,6 +301,8 @@ Sources:
 ## 🎯 Key Achievements
 
 ✅ **Fully Functional RAG System** - Vector search + LLM generation working seamlessly  
+✅ **Persistent Chat Memory** - Conversations auto-saved with localStorage  
+✅ **Multi-Conversation Support** - Manage multiple independent chat threads  
 ✅ **Professional Web Interface** - Modern, responsive design with smooth interactions  
 ✅ **AI-Assisted Development** - Built using v0.dev for rapid, high-quality development  
 ✅ **Cloud Deployment** - Live on Vercel, accessible worldwide  
