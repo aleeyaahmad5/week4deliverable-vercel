@@ -2,6 +2,9 @@ import { Index } from "@upstash/vector"
 import { createGroq } from "@ai-sdk/groq"
 import { streamText } from "ai"
 
+// Set longer timeout for Edge runtime (especially for 70B model)
+export const maxDuration = 60 // 60 seconds max for Vercel
+
 // Lazy initialization to avoid build-time errors
 let upstashIndex: Index | null = null
 let groq: ReturnType<typeof createGroq> | null = null

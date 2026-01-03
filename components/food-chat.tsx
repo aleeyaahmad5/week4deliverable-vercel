@@ -386,9 +386,9 @@ export function FoodChat({ onMessageCountChange, showHistory = false, onHistoryC
   }
 
   return (
-    <div className="w-full h-screen flex flex-col lg:flex-row bg-gradient-to-br from-slate-50 via-white to-blue-50 dark:from-slate-900 dark:via-slate-800 dark:to-slate-900 overflow-hidden">
+    <div className="w-full min-h-[100dvh] flex flex-col lg:flex-row bg-gradient-to-br from-slate-50 via-white to-blue-50 dark:from-slate-900 dark:via-slate-800 dark:to-slate-900">
       {/* Desktop Sidebar */}
-      <div className="hidden lg:flex flex-col w-64 bg-white dark:bg-slate-800 border-r border-slate-200 dark:border-slate-700 overflow-hidden">
+      <div className="hidden lg:flex flex-col w-64 bg-white dark:bg-slate-800 border-r border-slate-200 dark:border-slate-700 h-[100dvh] sticky top-0">
         <div className="p-4 border-b border-slate-200 dark:border-slate-700">
           <h2 className="text-lg font-bold text-slate-900 dark:text-white mb-4">Chat History</h2>
           <Button
@@ -441,11 +441,11 @@ export function FoodChat({ onMessageCountChange, showHistory = false, onHistoryC
         <div className="fixed inset-0 z-30 bg-black/50 lg:hidden" onClick={() => onHistoryChange?.(false)} />
       )}
       <div
-        className={`fixed inset-y-0 left-0 z-40 w-64 sm:w-72 bg-white dark:bg-slate-800 border-r border-slate-200 dark:border-slate-700 flex flex-col lg:hidden transition-transform duration-300 ${
+        className={`fixed inset-y-0 left-0 z-40 w-72 bg-white dark:bg-slate-800 border-r border-slate-200 dark:border-slate-700 flex flex-col lg:hidden transition-transform duration-300 ${
           showHistory ? "translate-x-0" : "-translate-x-full"
         }`}
       >
-        <button onClick={() => onHistoryChange?.(false)} className="absolute top-4 right-4 p-2 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-lg">
+        <button onClick={() => onHistoryChange?.(false)} className="absolute top-4 right-4 p-2 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-lg z-10">
           <Plus className="w-5 h-5 text-slate-600 dark:text-slate-400 rotate-45" />
         </button>
         <div className="p-4 border-b border-slate-200 dark:border-slate-700 mt-8">
@@ -468,29 +468,34 @@ export function FoodChat({ onMessageCountChange, showHistory = false, onHistoryC
             conversations.map((conv) => (
               <div
                 key={conv.id}
-                onClick={() => {
-                  loadConversation(conv.id)
-                  onHistoryChange?.(false)
-                }}
-                className={`group flex items-start gap-3 p-3 rounded-lg cursor-pointer transition-all ${
+                className={`flex items-start gap-3 p-3 rounded-lg transition-all ${
                   currentConversationId === conv.id
                     ? "bg-gradient-to-r from-blue-100 to-indigo-100 dark:from-blue-900/50 dark:to-indigo-900/50 shadow-md"
-                    : "hover:bg-slate-100 dark:hover:bg-slate-700/50"
+                    : "active:bg-slate-100 dark:active:bg-slate-700/50"
                 }`}
               >
-                <Clock className="w-4 h-4 text-slate-500 dark:text-slate-400 mt-1 flex-shrink-0" />
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-slate-900 dark:text-slate-100 truncate">{conv.title}</p>
-                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-                    {new Date(conv.updatedAt).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
-                  </p>
+                <div 
+                  className="flex items-start gap-3 flex-1 min-w-0 cursor-pointer"
+                  onClick={() => {
+                    loadConversation(conv.id)
+                    onHistoryChange?.(false)
+                  }}
+                >
+                  <Clock className="w-4 h-4 text-slate-500 dark:text-slate-400 mt-1 flex-shrink-0" />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-slate-900 dark:text-slate-100 truncate">{conv.title}</p>
+                    <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+                      {new Date(conv.updatedAt).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
+                    </p>
+                  </div>
                 </div>
                 <button
                   onClick={(e) => {
                     e.stopPropagation()
                     deleteConversation(conv.id)
                   }}
-                  className="p-1.5 rounded-lg opacity-0 group-hover:opacity-100 hover:bg-red-100 dark:hover:bg-red-900/50 transition-all flex-shrink-0"
+                  className="p-2 rounded-lg bg-red-50 dark:bg-red-900/30 hover:bg-red-100 dark:hover:bg-red-900/50 active:bg-red-200 dark:active:bg-red-800/50 transition-all flex-shrink-0"
+                  aria-label="Delete conversation"
                 >
                   <Trash2 className="w-4 h-4 text-red-500" />
                 </button>
@@ -501,10 +506,10 @@ export function FoodChat({ onMessageCountChange, showHistory = false, onHistoryC
       </div>
 
       {/* Main Chat Area */}
-      <div className="flex-1 flex flex-col w-full min-w-0">
+      <div className="flex-1 flex flex-col w-full min-w-0 min-h-[100dvh] lg:min-h-0 lg:h-[100dvh]">
         {/* Messages Area */}
-        <div className="flex-1 overflow-y-auto w-full max-w-3xl mx-auto px-4 py-6 lg:px-8 lg:py-8">
-          <div className="space-y-6 w-full">
+        <div className="flex-1 overflow-y-auto w-full max-w-3xl mx-auto px-4 py-6 lg:px-8 lg:py-8 overscroll-contain">
+          <div className="space-y-6 w-full pb-4">
             {messages.length === 0 && !loading && (
               <div className="text-center py-12 animate-fade-in">
                 <div className="mb-6">
@@ -745,7 +750,7 @@ export function FoodChat({ onMessageCountChange, showHistory = false, onHistoryC
         </div>
 
         {/* Input Form */}
-        <div className="border-t border-slate-200 dark:border-slate-700 p-4 lg:p-6 bg-gradient-to-b from-transparent to-white dark:to-slate-800">
+        <div className="border-t border-slate-200 dark:border-slate-700 p-4 lg:p-6 bg-white/95 dark:bg-slate-800/95 backdrop-blur-md sticky bottom-0 z-20">
           <div className="max-w-3xl mx-auto space-y-2">
             {/* Model Selection & Streaming Toggle */}
             <div className="flex items-center justify-end gap-2 flex-wrap">
