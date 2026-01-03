@@ -4,6 +4,34 @@
 
 The Food RAG Web Application is a full-stack AI-powered system that combines vector-based semantic search with Large Language Model (LLM) generation to provide intelligent responses about food-related queries.
 
+## Architecture Evolution
+
+This project evolved through three phases, each demonstrating significant architectural improvements:
+
+### Phase 1: Local System (Week 2)
+```
+foods.json → Ollama mxbai-embed-large → ChromaDB → Ollama llama3.2
+   (90)         (LOCAL ~2.2s)           (LOCAL)      (LOCAL ~21s)
+                        
+              Average Response Time: 23,691ms (~24 seconds)
+```
+
+### Phase 2: Cloud Migration (Week 3)
+```
+foods.json → Upstash Vector (auto-embed) → Groq Cloud llama-3.1-8b
+  (110)         (CLOUD ~259ms)                (CLOUD ~547ms)
+                        
+              Average Response Time: 806ms (<1 second)
+                      🚀 29.4x FASTER! 🚀
+```
+
+### Phase 3: Web Application (Weeks 4-5)
+```
+Next.js UI → Server Actions/API → Upstash Vector → Groq API → Streaming UI
+                                     
+              Production-ready with real-time streaming responses
+```
+
 ## Architecture Diagram
 
 ```
@@ -167,3 +195,25 @@ The system tracks and displays:
 | Streaming | Vercel AI SDK | Real-time responses |
 | Deployment | Vercel | Hosting & edge |
 | State | localStorage | Chat persistence |
+
+## Performance Comparison: Local vs Cloud
+
+The migration from local to cloud infrastructure achieved significant performance improvements:
+
+| Metric | Local (Week 2) | Cloud (Week 3) | Improvement |
+|--------|----------------|----------------|-------------|
+| Embedding + Retrieval | 2,196ms | 259ms | **+88.2%** |
+| LLM Generation | 21,493ms | 547ms | **+97.5%** |
+| **Total Response** | **23,691ms** | **806ms** | **+96.6%** |
+
+### Key Migration Changes
+
+| Component | Before (Local) | After (Cloud) |
+|-----------|---------------|---------------|
+| **Vector Database** | ChromaDB (local SQLite) | Upstash Vector (serverless) |
+| **Embeddings** | Ollama mxbai-embed-large (manual) | Upstash built-in (automatic) |
+| **LLM** | Ollama llama3.2 (local) | Groq llama-3.1-8b-instant (cloud) |
+| **Food Database** | 90 items | 110 items |
+| **Infrastructure** | Local machine required | Serverless, auto-scaling |
+
+For detailed migration documentation, see [python-reference/docs/MIGRATION_PLAN.md](../python-reference/docs/MIGRATION_PLAN.md).
